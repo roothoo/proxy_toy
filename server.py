@@ -37,9 +37,6 @@ def socket_server_test():
 
         headers = re.split('\r\n', re.split('\r\n\r\n', data)[0])
 
-        if re.split('GET', headers[0])
-        for h in headers:
-
 
         if not data:
             break
