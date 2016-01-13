@@ -2,7 +2,7 @@ import json
 import socket
 import re
 
-from objc import nil
+import nil as nil
 
 METHOD = ("GET", "POST", "UNKOWN")
 
@@ -20,9 +20,15 @@ class HTTPResponse(object):
 
 
 class SimpleProxy(object):
-    request = HTTPRequest()
+    request = nil
+    reqRawData = ''
     reqSock = nil
+    reqConn = nil
 
+    serverIp = ''
+    serverPort = 80
+    serverSock = nil
+    serverData = ''
 
 def getClientRequest(data):
     try:
@@ -52,46 +58,65 @@ def getClientRequest(data):
         print 'data = ' + data
 
 
+def doProxy(simpleProxy):
+    reqRawData = simpleProxy.reqRawData
+    reqConn = simpleProxy.reqConn
+    serverSock = simpleProxy.serverSock
+
+    serverSock.send(reqRawData)
+    # recv data from server
+    serverData = serverSock.recv(4096)
+    if len(serverData) == 4096:
+        while True:
+            recvData = serverSock.recv(4096)
+            if recvData == '':
+                break
+            serverData += recvData
+    print serverData
+    simpleProxy.serverData = serverData
+    # send serverData to client
+    reqConn.sendall(serverData)
+
+
 def socket_server_test():
-    clientSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    host = "127.0.0.1"
-    port = 8888
-    clientSock.bind((host, port))
-    clientSock.listen(5)
-
-    oneProxy = SimpleProxy()
-    oneProxy.reqSock = clientSock
-
-    conn, addr = clientSock.accept()
-    print "connected by ", addr
-
     try:
-        data = conn.recv(4096)
-        request = getClientRequest(data)
-        simpleProxy = SimpleProxy()
-        simpleProxy.request = request
-        simpleProxy.reqSock = clientSock
-        print json.dumps(request.__dict__)
+        clientSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        host = "127.0.0.1"
+        port = 8888
+        clientSock.bind((host, port))
+        clientSock.listen(5)
+        reqConn, addr = clientSock.accept()
+        print "connected by ", addr
 
-        hostName = request.header['Host']
-        serverIp = socket.gethostbyname(hostName)
-        serverPort = 80
-        serverSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        serverSock.connect((serverIp, serverPort))
-        serverSock.send(data)
-        serverData = serverSock.recv(4096)
-        # while True:
-        #     recvData = serverSock.recv(1024)
-        #     if recvData == '':
-        #         break
-        #     serverData += recvData
-        print serverData
-        conn.sendall(serverData)
+        simpleProxy = SimpleProxy()
+        while True:
+            reqRawData = reqConn.recv(4096)
+            request = getClientRequest(reqRawData)
+
+            print json.dumps(request.__dict__)
+            hostName = request.header['Host']
+            if simpleProxy.request == nil or cmp(hostName, simpleProxy.request.header['Host']) != 0:
+                simpleProxy.serverIp = socket.gethostbyname(hostName)
+
+            simpleProxy.reqRawData = reqRawData
+            simpleProxy.request = request
+            simpleProxy.reqSock = clientSock
+            simpleProxy.reqConn = reqConn
+
+            serverSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            serverSock.connect((simpleProxy.serverIp, simpleProxy.serverPort))
+            simpleProxy.serverSock = serverSock
+
+            doProxy(simpleProxy)
 
     except Exception, e:
         print e
     finally:
-        if conn != nil:
-            conn.close()
-        if clientSock != nil:
-            clientSock.close()
+        if simpleProxy == nil:
+            return
+        if simpleProxy.reqConn != nil:
+            simpleProxy.reqConn.close()
+        if simpleProxy.reqSock != nil:
+            simpleProxy.reqSock.close()
+        if simpleProxy.serverSock != nil:
+            simpleProxy.serverSock.close()
