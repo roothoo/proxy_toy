@@ -1,8 +1,7 @@
 import json
 import socket
 import re
-
-import nil as nil
+import threading
 
 METHOD = ("GET", "POST", "UNKOWN")
 
@@ -11,7 +10,7 @@ class HTTPRequest(object):
     method = ''
     uri = ''
     version = ''
-    header = nil
+    header = None
     body = ''
 
 
@@ -20,20 +19,20 @@ class HTTPResponse(object):
 
 
 class SimpleProxy(object):
-    request = nil
+    request = None
     reqRawData = ''
-    reqSock = nil
-    reqConn = nil
+    reqSock = None
+    reqConn = None
 
     serverIp = ''
     serverPort = 80
-    serverSock = nil
+    serverSock = None
     serverData = ''
 
 def getClientRequest(data):
     try:
-        if data == nil or data == '':
-            return nil
+        if data == None or data == '':
+            return None
         request = HTTPRequest()
         headers = re.split('\r\n', re.split('\r\n\r\n', data)[0])
         #method
@@ -65,58 +64,69 @@ def doProxy(simpleProxy):
 
     serverSock.send(reqRawData)
     # recv data from server
-    serverData = serverSock.recv(4096)
-    if len(serverData) == 4096:
+    LEN = 4096 * 8
+    serverData = serverSock.recv(LEN)
+    if len(serverData) == LEN:
         while True:
-            recvData = serverSock.recv(4096)
+            recvData = serverSock.recv(LEN)
             if recvData == '':
                 break
             serverData += recvData
-    print serverData
+    # print serverData
     simpleProxy.serverData = serverData
     # send serverData to client
     reqConn.sendall(serverData)
 
 
-def socket_server_test():
+def proxyLoop(reqSock, reqConn, addr):
     try:
-        clientSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        host = "127.0.0.1"
-        port = 8888
-        clientSock.bind((host, port))
-        clientSock.listen(5)
-        reqConn, addr = clientSock.accept()
-        print "connected by ", addr
-
+        print 'thread %s is running...' % threading.currentThread().name
         simpleProxy = SimpleProxy()
         while True:
+            print 'waiting for request'
             reqRawData = reqConn.recv(4096)
             request = getClientRequest(reqRawData)
 
-            print json.dumps(request.__dict__)
+            # print json.dumps(request.__dict__)
+            print request.uri
             hostName = request.header['Host']
-            if simpleProxy.request == nil or cmp(hostName, simpleProxy.request.header['Host']) != 0:
+            if simpleProxy.request is None or cmp(hostName, simpleProxy.request.header['Host']) != 0:
                 simpleProxy.serverIp = socket.gethostbyname(hostName)
 
             simpleProxy.reqRawData = reqRawData
             simpleProxy.request = request
-            simpleProxy.reqSock = clientSock
+            simpleProxy.reqSock = reqSock
             simpleProxy.reqConn = reqConn
 
-            serverSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            serverSock.connect((simpleProxy.serverIp, simpleProxy.serverPort))
-            simpleProxy.serverSock = serverSock
+            # socket.setdefaulttimeout(40)
+            if simpleProxy.serverSock is None:
+                serverSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                serverSock.connect((simpleProxy.serverIp, simpleProxy.serverPort))
+                simpleProxy.serverSock = serverSock
 
             doProxy(simpleProxy)
+    except Exception, e:
+        print e
+
+
+def socket_server_test():
+    try:
+        reqSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        host = "127.0.0.1"
+        port = 8888
+        reqSock.bind((host, port))
+        reqSock.listen(10)
+
+        threadList = []
+        i = 0
+        while True:
+            reqConn, addr = reqSock.accept()
+            print "connected by ", addr
+            i += 1
+            t = threading.Thread(target=proxyLoop, args=(reqSock, reqConn, addr), name="proxyLoop" + str(i))
+            threadList.append(t)
+            t.start()
+
 
     except Exception, e:
         print e
-    finally:
-        if simpleProxy == nil:
-            return
-        if simpleProxy.reqConn != nil:
-            simpleProxy.reqConn.close()
-        if simpleProxy.reqSock != nil:
-            simpleProxy.reqSock.close()
-        if simpleProxy.serverSock != nil:
-            simpleProxy.serverSock.close()
