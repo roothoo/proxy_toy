@@ -1,11 +1,9 @@
 # -*- coding: utf-8 -*-
-import server
-from student import *
-from Animal import *
+import select_test.my_select
 
 
 def main():
-    server.socket_server_test()
+    select_test.my_select.proxyLoop()
 
 if __name__ == '__main__':
     main()
