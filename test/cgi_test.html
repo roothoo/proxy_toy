@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>CGI_test</title>
+</head>
+<body>
+
+<form action="cgi-bin/cgi_test.py" method="post">
+    first :<input type="text" name="first">
+    <br>
+    second:<input type="text" name="second">
+    <br>
+    <input type="submit" value="submit">
+</form>
+
+<br><br>
+
+<form enctype="multipart/form-data" action="cgi-bin/cgi_file_test.py" method="post">
+    File: <input type="file" name="filename">
+    <br>
+    <input type="submit" value="upload">
+</form>
+
+</body>
+</html>
